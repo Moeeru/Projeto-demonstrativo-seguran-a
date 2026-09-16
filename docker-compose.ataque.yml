@@ -1,0 +1,53 @@
+# =====================================================================
+# DOCKER COMPOSE — DEMONSTRAÇÃO DE ATAQUE LATERAL
+# 3 containers: Server (ponte), User1 (vítima), User2 (atacante)
+# =====================================================================
+
+services:
+  server:
+    build:
+      context: ./ataque/server
+      dockerfile: Dockerfile
+    container_name: server
+    restart: unless-stopped
+    networks:
+      demo_attack_net:
+        ipv4_address: 10.10.0.100
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  user1:
+    build:
+      context: ./ataque/user1
+      dockerfile: Dockerfile
+    container_name: user1
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      demo_attack_net:
+        ipv4_address: 10.10.0.10
+
+  user2:
+    build:
+      context: ./ataque/user2
+      dockerfile: Dockerfile
+    container_name: user2
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      demo_attack_net:
+        ipv4_address: 10.10.0.20
+
+networks:
+  demo_attack_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
