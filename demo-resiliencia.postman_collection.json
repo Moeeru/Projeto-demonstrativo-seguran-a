@@ -1,0 +1,218 @@
+{
+  "info": {
+    "name": "Demonstração de Resiliência - APIs & Integrações",
+    "_postman_id": "8f5a2b1c-9d3e-4f7a-b1c2-3d4e5f6a7b8c",
+    "description": "Coleção para testes demonstrativos de Rota do Caos vs Rota Resiliente (Atomicidade, Idempotência e Fail-Fast)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Auditoria & Limpeza",
+      "item": [
+        {
+          "name": "0.1 Limpar Banco de Dados (Reset)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/ordens/reset",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "ordens", "reset"]
+            }
+          }
+        },
+        {
+          "name": "0.2 Listar Todas as Ordens",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/ordens",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "ordens"]
+            }
+          }
+        },
+        {
+          "name": "0.3 Listar Ordens Órfãs (Inconsistência)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/ordens/orfas",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "ordens", "orfas"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Cenário Caótico (Rota Vulnerável)",
+      "item": [
+        {
+          "name": "1.1 Partial Commit (Valor Negativo -> Gera Ordem Órfã)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Empresa Alfa Ltda\",\n  \"integrationId\": \"CAOS-PARTIAL-001\",\n  \"itens\": [\n    {\n      \"descricao\": \"Consultoria Técnica\",\n      \"valor\": 1500.00\n    },\n    {\n      \"descricao\": \"Item com Falha Injetada\",\n      \"valor\": -250.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/vulneravel/ordens",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "vulneravel", "ordens"]
+            },
+            "description": "Retorna 500 com Injeção de Falha. No banco, a ordem foi salva, mas o segundo item falhou. A ordem ficou órfã!"
+          }
+        },
+        {
+          "name": "1.2 Duplicidade - Disparo 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Empresa Beta S/A\",\n  \"integrationId\": \"CAOS-RETRY-002\",\n  \"itens\": [\n    {\n      \"descricao\": \"Licença Mensal de Software\",\n      \"valor\": 350.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/vulneravel/ordens",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "vulneravel", "ordens"]
+            }
+          }
+        },
+        {
+          "name": "1.3 Duplicidade - Disparo 2 (Mesmo integrationId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Empresa Beta S/A\",\n  \"integrationId\": \"CAOS-RETRY-002\",\n  \"itens\": [\n    {\n      \"descricao\": \"Licença Mensal de Software\",\n      \"valor\": 350.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/vulneravel/ordens",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "vulneravel", "ordens"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Cenário Resiliente (Rota Protegida)",
+      "item": [
+        {
+          "name": "2.1 Fail-Fast (Item Negativo Bloqueado na Borda)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Empresa Gama Tech\",\n  \"integrationId\": \"PROT-FAILFAST-001\",\n  \"itens\": [\n    {\n      \"descricao\": \"Item Inválido\",\n      \"valor\": -100.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/protegido/ordens",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "protegido", "ordens"]
+            },
+            "description": "Retorna 400 Bad Request com Bean Validation antes de tocar na base de dados."
+          }
+        },
+        {
+          "name": "2.2 Atomicidade e Rollback (@Transactional)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Empresa Gama Tech\",\n  \"integrationId\": \"PROT-ROLLBACK-002\",\n  \"itens\": [\n    {\n      \"descricao\": \"Item Válido\",\n      \"valor\": 500.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/protegido/ordens?simularFalhaTransacao=true",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "protegido", "ordens"],
+              "query": [
+                {
+                  "key": "simularFalhaTransacao",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Simula um erro durante a transação. O @Transactional faz rollback completo e nenhuma linha é gravada."
+          }
+        },
+        {
+          "name": "2.3 Idempotência - Disparo 1 (Criação)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Empresa Delta Log\",\n  \"integrationId\": \"PROT-IDEMPOTENCY-003\",\n  \"itens\": [\n    {\n      \"descricao\": \"Auditoria de Segurança\",\n      \"valor\": 2800.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/protegido/ordens",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "protegido", "ordens"]
+            },
+            "description": "Primeira requisição: grava a ordem com sucesso (201 Created)."
+          }
+        },
+        {
+          "name": "2.4 Idempotência - Disparo 2 (Retry Attack)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Empresa Delta Log\",\n  \"integrationId\": \"PROT-IDEMPOTENCY-003\",\n  \"itens\": [\n    {\n      \"descricao\": \"Auditoria de Segurança\",\n      \"valor\": 2800.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/protegido/ordens",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "protegido", "ordens"]
+            },
+            "description": "Segunda requisição: detecta o mesmo integration_id e retorna 200 OK sem criar duplicata."
+          }
+        }
+      ]
+    }
+  ]
+}
