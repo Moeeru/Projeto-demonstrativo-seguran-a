@@ -1,0 +1,87 @@
+# ================================================================
+# Docker Compose — Simulação de Ataque Pickle Deserialization
+# Projeto: Demonstração de Segurança (OWASP A08:2021)
+#
+# 3 Containers:
+#   1. servidor-bd      → PostgreSQL 16 (servidor principal com o BD)
+#   2. maquina-vitima   → Python (executa login.py — a vítima)
+#   3. maquina-atacante → Python (executa exploit.py — o atacante)
+# ================================================================
+
+services:
+
+  # ─── CONTAINER 1: Servidor Principal (Banco de Dados) ───
+  servidor-bd:
+    image: postgres:16-alpine
+    container_name: servidor_bd
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: demo_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_attack_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d  # Seed automático na 1ª inicialização
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d demo_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - rede-ataque
+
+  # ─── CONTAINER 2: Máquina da Vítima ───
+  maquina-vitima:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maquina_vitima
+    restart: unless-stopped
+    environment:
+      - DB_HOST=servidor-bd
+      - DB_PORT=5432
+      - DB_NAME=demo_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - SESSION_FILE=/app/shared/session.pkl
+    volumes:
+      - sessao_compartilhada:/app/shared  # Volume compartilhado com o atacante
+    depends_on:
+      servidor-bd:
+        condition: service_healthy
+    networks:
+      - rede-ataque
+
+  # ─── CONTAINER 3: Máquina do Atacante ───
+  maquina-atacante:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maquina_atacante
+    restart: unless-stopped
+    environment:
+      - DB_HOST=servidor-bd
+      - DB_PORT=5432
+      - DB_NAME=demo_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - SESSION_FILE=/app/shared/session.pkl
+    volumes:
+      - sessao_compartilhada:/app/shared  # Mesmo volume — simula acesso ao filesystem
+    depends_on:
+      servidor-bd:
+        condition: service_healthy
+    networks:
+      - rede-ataque
+
+# ─── Volumes persistentes ───
+volumes:
+  pg_attack_data:
+  sessao_compartilhada:  # Simula filesystem compartilhado (acesso do atacante)
+
+# ─── Rede isolada ───
+networks:
+  rede-ataque:
+    driver: bridge
