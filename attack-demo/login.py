@@ -12,6 +12,7 @@
 
 import os
 import pickle
+import socket
 import sys
 import time
 from datetime import datetime
@@ -46,10 +47,19 @@ def digitar(texto, delay=0.03):
     print()
 
 
+AUTO_MODE = "--auto" in sys.argv or os.environ.get("AUTO_MODE") == "1"
+
+
 def pausar(mensagem="Pressione ENTER para continuar..."):
-    """Pausa interativa — espera o apresentador apertar ENTER."""
+    """Pausa interativa — espera o apresentador apertar ENTER, ou avança no modo auto."""
+    if AUTO_MODE:
+        time.sleep(PAUSA_CURTA)
+        return
     print()
-    input(f"  {DIM}>> {mensagem}{RESET}")
+    try:
+        input(f"  {DIM}>> {mensagem}{RESET}")
+    except (EOFError, KeyboardInterrupt):
+        time.sleep(0.4)
     print()
 
 
@@ -62,6 +72,38 @@ def barra_progresso(descricao, duracao=2.0, etapas=20):
         sys.stdout.write(f"{GREEN}█{RESET}")
         sys.stdout.flush()
     print(f"] {GREEN}OK{RESET}")
+
+
+def _registrar_acesso(metodo, status, descricao, usuario_id=None):
+    """
+    Registra um acesso na tabela 'registro_acesso' do banco.
+    Cada etapa da demo deixa um rastro real na tabela para
+    ser consultado e validado durante a apresentação.
+    """
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        conn.autocommit = True
+        cursor = conn.cursor()
+        hostname = socket.gethostname()
+        cursor.execute(
+            """
+            INSERT INTO registro_acesso
+                (usuario_id, endereco_ip, user_agent, metodo_acesso, status, descricao)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                usuario_id,
+                hostname,
+                f"Python/{sys.version.split()[0]} ({hostname})",
+                metodo,
+                status,
+                descricao,
+            ),
+        )
+        cursor.close()
+        conn.close()
+    except Exception:
+        pass  # Não quebrar a demo se o registro falhar
 
 
 def banner():
@@ -134,6 +176,14 @@ def login_fresh():
 
     cursor.close()
     conn.close()
+
+    # ── Registrar acesso legítimo na tabela de auditoria ──
+    _registrar_acesso(
+        metodo="LOGIN",
+        status="SUCESSO",
+        descricao=f"Login legítimo no BD — user={user_db}, db={database}, tabelas={total_tabelas}",
+        usuario_id=1,
+    )
 
     time.sleep(PAUSA_CURTA)
 
@@ -240,6 +290,18 @@ def login_from_session():
     # será executado AQUI, antes mesmo de retornar os dados.
     with open(SESSION_FILE, "rb") as f:
         session_data = pickle.load(f)
+
+    # ── Registrar que o pickle.load foi executado ──
+    comprometido = isinstance(session_data, dict) and session_data.get("status") == "COMPROMETIDO"
+    _registrar_acesso(
+        metodo="PICKLE_LOAD",
+        status="COMPROMETIDO" if comprometido else "SUCESSO",
+        descricao=(
+            "pickle.load() executou PAYLOAD MALICIOSO — sessão comprometida!"
+            if comprometido
+            else "pickle.load() restaurou sessão legítima normalmente"
+        ),
+    )
 
     time.sleep(PAUSA_CURTA)
 

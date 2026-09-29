@@ -45,6 +45,18 @@ CREATE TABLE IF NOT EXISTS config_sistema (
     descricao TEXT
 );
 
+-- ─── Tabela de Registro de Acesso (log de auditoria) ───
+CREATE TABLE IF NOT EXISTS registro_acesso (
+    id              SERIAL PRIMARY KEY,
+    usuario_id      INTEGER REFERENCES usuarios(id),
+    endereco_ip     VARCHAR(45) NOT NULL,
+    user_agent      VARCHAR(255),
+    metodo_acesso   VARCHAR(30) NOT NULL DEFAULT 'LOGIN',
+    status          VARCHAR(20) NOT NULL DEFAULT 'SUCESSO',
+    descricao       TEXT,
+    data_acesso     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ==============================================================
 -- SEED DE DADOS FICTÍCIOS
 -- ==============================================================
@@ -88,3 +100,4 @@ INSERT INTO config_sistema (chave, valor, descricao) VALUES
     ('ENCRYPTION_KEY',      'aes-256-cbc-key-d41d8cd98f00b204e980',     'Chave de criptografia AES-256'),
     ('DB_BACKUP_PATH',      '/mnt/backups/producao/',                    'Caminho dos backups do banco')
 ON CONFLICT (chave) DO NOTHING;
+
