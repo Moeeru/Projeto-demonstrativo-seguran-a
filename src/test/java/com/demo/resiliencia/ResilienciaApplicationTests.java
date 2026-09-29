@@ -34,6 +34,9 @@ class ResilienciaApplicationTests {
     @Mock
     private ItemOrdemRepository itemRepository;
 
+    @Mock
+    private com.demo.resiliencia.service.AuditoriaService auditoriaService;
+
     @InjectMocks
     private VulneravelService vulneravelService;
 

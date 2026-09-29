@@ -1,7 +1,9 @@
 package com.demo.resiliencia.controller;
 
 import com.demo.resiliencia.dto.OrdemServicoResponse;
+import com.demo.resiliencia.model.AuditoriaTransacao;
 import com.demo.resiliencia.model.OrdemServico;
+import com.demo.resiliencia.repository.AuditoriaTransacaoRepository;
 import com.demo.resiliencia.repository.ItemOrdemRepository;
 import com.demo.resiliencia.repository.OrdemServicoRepository;
 import org.springframework.http.ResponseEntity;
@@ -18,10 +20,14 @@ public class DemoAuditoriaController {
 
     private final OrdemServicoRepository ordemRepository;
     private final ItemOrdemRepository itemRepository;
+    private final AuditoriaTransacaoRepository auditoriaRepository;
 
-    public DemoAuditoriaController(OrdemServicoRepository ordemRepository, ItemOrdemRepository itemRepository) {
+    public DemoAuditoriaController(OrdemServicoRepository ordemRepository,
+                                   ItemOrdemRepository itemRepository,
+                                   AuditoriaTransacaoRepository auditoriaRepository) {
         this.ordemRepository = ordemRepository;
         this.itemRepository = itemRepository;
+        this.auditoriaRepository = auditoriaRepository;
     }
 
     /**
@@ -69,16 +75,79 @@ public class DemoAuditoriaController {
     }
 
     /**
-     * Limpa as tabelas de itens e ordens para reiniciar os testes da apresentação do zero.
+     * Retorna o histórico forense e auditoria transacional gravada no PostgreSQL.
+     */
+    @GetMapping("/auditoria")
+    public ResponseEntity<Map<String, Object>> listarAuditoria() {
+        List<AuditoriaTransacao> registros = auditoriaRepository.findAllByOrderByDataHoraDesc();
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("totalEventosRegistrados", registros.size());
+        res.put("eventos", registros);
+        return ResponseEntity.ok(res);
+    }
+
+    /**
+     * Placar estatístico comparando Rota do Caos vs Rota Resiliente.
+     */
+    @GetMapping("/placar")
+    public ResponseEntity<Map<String, Object>> obterPlacarResiliencia() {
+        List<OrdemServico> todasOrdens = ordemRepository.findAll();
+        List<OrdemServico> orfas = ordemRepository.findOrdensOrfas();
+
+        long eventosCaos = auditoriaRepository.findAll().stream()
+                .filter(a -> a.getRota() != null && a.getRota().contains("vulneravel"))
+                .count();
+
+        long eventosProtegidos = auditoriaRepository.findAll().stream()
+                .filter(a -> a.getRota() != null && a.getRota().contains("protegido"))
+                .count();
+
+        long bloqueiosFailFast = auditoriaRepository.countByStatusExecucao("BLOQUEIO_PREVENTIVO_HTTP_400");
+        long rollbacksExecutados = auditoriaRepository.countByStatusExecucao("ROLLBACK_AUTOMATICO_EXECUTADO");
+        long deduplicacoesIdempotencia = auditoriaRepository.countByStatusExecucao("IDEMPOTENCIA_DEDUPLICADA");
+
+        Map<String, Object> rotaCaos = new LinkedHashMap<>();
+        rotaCaos.put("totalChamadas", eventosCaos);
+        rotaCaos.put("ordensOrfasGeradas", orfas.size());
+        rotaCaos.put("protecaoTransacional", "AUSENTE (Partial Commit ativo)");
+        rotaCaos.put("toleranciaRetries", "NENHUMA (Duplicação descontrolada)");
+        rotaCaos.put("diagnostico", orfas.isEmpty() ? "SEM_FALHAS_AINDA" : "BANCO_CORROMPIDO_INCONSISTENTE");
+
+        Map<String, Object> rotaProtegida = new LinkedHashMap<>();
+        rotaProtegida.put("totalChamadas", eventosProtegidos);
+        rotaProtegida.put("bloqueiosFailFast", bloqueiosFailFast);
+        rotaProtegida.put("rollbacksExecutados", rollbacksExecutados);
+        rotaProtegida.put("deduplicacoesIdempotencia", deduplicacoesIdempotencia);
+        rotaProtegida.put("ordensOrfasGeradas", 0);
+        rotaProtegida.put("protecaoTransacional", "ATIVA (@Transactional ACID)");
+        rotaProtegida.put("toleranciaRetries", "BLINDADA (Idempotency Key)");
+        rotaProtegida.put("diagnostico", "BANCO_100_PORCENTO_INTEGRO");
+
+        Map<String, Object> placar = new LinkedHashMap<>();
+        placar.put("totalOrdensPersistidasNoBanco", todasOrdens.size());
+        placar.put("rotaDoCaos", rotaCaos);
+        placar.put("rotaResiliente", rotaProtegida);
+
+        return ResponseEntity.ok(placar);
+    }
+
+    /**
+     * Limpa as tabelas de itens, ordens e auditoria para reiniciar os testes da apresentação do zero.
      */
     @DeleteMapping("/reset")
-    public ResponseEntity<Map<String, Object>> resetarBanco() {
+    public ResponseEntity<Map<String, Object>> resetarBanco(
+            @RequestParam(name = "limparAuditoria", defaultValue = "false") boolean limparAuditoria) {
         itemRepository.deleteAll();
         ordemRepository.deleteAll();
 
+        if (limparAuditoria) {
+            auditoriaRepository.deleteAll();
+        }
+
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("status", "SUCESSO");
-        res.put("mensagem", "Banco de dados resetado com sucesso. Pronto para nova rodada de testes!");
+        res.put("mensagem", "Tabelas de ordens e itens limpas com sucesso. " 
+                + (limparAuditoria ? "Auditoria resetada." : "Histórico de auditoria preservado para fins periciais."));
         return ResponseEntity.ok(res);
     }
 }

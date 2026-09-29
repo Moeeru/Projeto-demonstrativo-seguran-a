@@ -3,6 +3,7 @@ package com.demo.resiliencia.controller;
 import com.demo.resiliencia.dto.OrdemServicoRequest;
 import com.demo.resiliencia.dto.OrdemServicoResponse;
 import com.demo.resiliencia.service.VulneravelService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,8 +25,11 @@ public class VulneravelController {
      * - Sem Idempotência (permite gravar o mesmo integration_id infinitamente)
      */
     @PostMapping("/ordens")
-    public ResponseEntity<OrdemServicoResponse> criarOrdemVulneravel(@RequestBody OrdemServicoRequest request) {
-        OrdemServicoResponse response = vulneravelService.processarOrdemVulneravel(request);
+    public ResponseEntity<OrdemServicoResponse> criarOrdemVulneravel(
+            @RequestBody OrdemServicoRequest request,
+            HttpServletRequest httpRequest) {
+        String ipOrigem = httpRequest.getRemoteAddr();
+        OrdemServicoResponse response = vulneravelService.processarOrdemVulneravel(request, ipOrigem);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

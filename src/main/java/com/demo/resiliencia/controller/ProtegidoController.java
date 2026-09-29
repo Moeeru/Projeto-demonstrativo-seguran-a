@@ -3,6 +3,7 @@ package com.demo.resiliencia.controller;
 import com.demo.resiliencia.dto.OrdemServicoRequest;
 import com.demo.resiliencia.dto.OrdemServicoResponse;
 import com.demo.resiliencia.service.ProtegidoService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,9 +31,11 @@ public class ProtegidoController {
     @PostMapping("/ordens")
     public ResponseEntity<OrdemServicoResponse> criarOrdemProtegida(
             @Valid @RequestBody OrdemServicoRequest request,
-            @RequestParam(name = "simularFalhaTransacao", defaultValue = "false") boolean simularFalhaTransacao) {
+            @RequestParam(name = "simularFalhaTransacao", defaultValue = "false") boolean simularFalhaTransacao,
+            HttpServletRequest httpRequest) {
 
-        OrdemServicoResponse response = protegidoService.processarOrdemProtegida(request, simularFalhaTransacao);
+        String ipOrigem = httpRequest.getRemoteAddr();
+        OrdemServicoResponse response = protegidoService.processarOrdemProtegida(request, simularFalhaTransacao, ipOrigem);
 
         // Se for idempotência (já existia), retorna 200 OK. Se foi criado agora, retorna 201 CREATED.
         if (response.getMensagem() != null && response.getMensagem().contains("IDEMPOTÊNCIA")) {

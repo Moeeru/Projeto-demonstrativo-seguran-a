@@ -1,5 +1,7 @@
 package com.demo.resiliencia.exception;
 
+import com.demo.resiliencia.service.AuditoriaService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -15,8 +17,17 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private final AuditoriaService auditoriaService;
+
+    public GlobalExceptionHandler(AuditoriaService auditoriaService) {
+        this.auditoriaService = auditoriaService;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+    public ResponseEntity<Map<String, Object>> handleValidationExceptions(
+            MethodArgumentNotValidException ex,
+            HttpServletRequest request) {
+
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("timestamp", LocalDateTime.now());
         response.put("status", HttpStatus.BAD_REQUEST.value());
@@ -28,6 +39,19 @@ public class GlobalExceptionHandler {
             fieldErrors.put(error.getField(), error.getDefaultMessage());
         }
         response.put("errosValidacao", fieldErrors);
+
+        // Registra a evidência de auditoria do bloqueio Fail-Fast
+        auditoriaService.registrar(
+                request.getRemoteAddr(),
+                request.getRequestURI(),
+                request.getMethod(),
+                "PAYLOAD_INVALIDO",
+                "CLIENTE_DESCONHECIDO",
+                "CENARIO_3_FAIL_FAST",
+                "BLOQUEIO_PREVENTIVO_HTTP_400",
+                400,
+                "FAIL-FAST ATIVO: Requisição bloqueada pelo Bean Validation (@Valid) na camada Web. Zero recursos de banco consumidos! Inconsistências: " + fieldErrors
+        );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }

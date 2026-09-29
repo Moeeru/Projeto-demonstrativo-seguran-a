@@ -76,6 +76,7 @@ while ($true) {
             Write-Host "  4. AMBIENTE DA API RESILIENTE (demo_spring_api e demo_postgres):" -ForegroundColor Magenta
             Write-Host "     docker logs -f demo_spring_api      # Ver logs do Spring Boot em tempo real" -ForegroundColor DarkGray
             Write-Host '     docker exec -it demo_postgres psql -U postgres -d demo_db -c "SELECT * FROM ordens_servico;"' -ForegroundColor DarkGray
+            Write-Host '     docker exec -it demo_postgres psql -U postgres -d demo_db -c "SELECT id, ip_origem, rota, tipo_cenario, status_execucao, codigo_http FROM auditoria_transacional ORDER BY id DESC LIMIT 10;"' -ForegroundColor DarkGray
             Write-Host ""
             Read-Host "  Pressione ENTER para voltar ao menu..."
         }

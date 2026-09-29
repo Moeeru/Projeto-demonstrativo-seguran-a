@@ -100,10 +100,19 @@ Ele responde na prática a duas perguntas críticas:
         ├── controller/
         │   ├── VulneravelController.java   # Rota do Caos (/api/vulneravel)
         │   ├── ProtegidoController.java     # Rota Resiliente (/api/protegido)
-        │   └── DemoAuditoriaController.java # Endpoints de auditoria (/api/ordens)
-        └── service/
-            ├── VulneravelService.java       # Sem transação, sem idempotência
-            └── ProtegidoService.java        # Com @Transactional e verificação de chave
+        │   └── DemoAuditoriaController.java # Endpoints de auditoria e placar (/api/ordens)
+        ├── service/
+        │   ├── VulneravelService.java       # Sem transação, sem idempotência
+        │   ├── ProtegidoService.java        # Com @Transactional e verificação de chave
+        │   └── AuditoriaService.java        # Auditoria autônoma (REQUIRES_NEW)
+        ├── model/
+        │   ├── OrdemServico.java            # Entidade mestre
+        │   ├── ItemOrdem.java               # Entidade filha
+        │   └── AuditoriaTransacao.java      # Tabela forense de auditoria
+        └── repository/
+            ├── OrdemServicoRepository.java
+            ├── ItemOrdemRepository.java
+            └── AuditoriaTransacaoRepository.java
 ```
 
 ---
@@ -172,6 +181,7 @@ SELECT * FROM config_sistema;
 ```bash
 docker logs -f demo_spring_api
 docker exec -it demo_postgres psql -U postgres -d demo_db -c "SELECT * FROM ordens_servico;"
+docker exec -it demo_postgres psql -U postgres -d demo_db -c "SELECT id, ip_origem, rota, tipo_cenario, status_execucao, codigo_http FROM auditoria_transacional ORDER BY id DESC LIMIT 10;"
 ```
 
 ---
